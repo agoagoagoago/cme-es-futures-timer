@@ -157,6 +157,193 @@
             font-weight: 600;
         }
 
+        .news-section {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .news-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .news-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .news-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .news-refresh-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--button-bg);
+            color: var(--text-primary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .news-refresh-btn:hover {
+            background-color: var(--button-hover);
+        }
+
+        .news-refresh-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .news-timestamp {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .news-status {
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .news-status.loading {
+            background-color: var(--bg-primary);
+            color: var(--text-secondary);
+        }
+
+        .news-status.error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .news-status.hidden {
+            display: none;
+        }
+
+        .news-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .news-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background-color: var(--bg-primary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            transition: background-color 0.2s;
+        }
+
+        .news-item:hover {
+            background-color: var(--button-bg);
+        }
+
+        .news-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .news-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            line-height: 1.4;
+        }
+
+        .news-title a {
+            color: var(--text-primary);
+            text-decoration: none;
+            display: block;
+        }
+
+        .news-title a:hover {
+            text-decoration: underline;
+        }
+
+        .news-title a:focus {
+            outline: 2px solid var(--button-active);
+            outline-offset: 2px;
+        }
+
+        .news-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .news-source {
+            font-weight: 500;
+        }
+
+        .news-time {
+            white-space: nowrap;
+        }
+
+        .news-snippet {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Loading skeleton */
+        .news-skeleton {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .news-skeleton-item {
+            padding: 12px;
+            background-color: var(--bg-primary);
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .skeleton-line {
+            height: 14px;
+            background: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
+            background-size: 200% 100%;
+            animation: skeleton-shimmer 1.5s infinite;
+            border-radius: 4px;
+            margin-bottom: 6px;
+        }
+
+        .skeleton-line.title {
+            width: 85%;
+            height: 16px;
+        }
+
+        .skeleton-line.meta {
+            width: 60%;
+            height: 12px;
+        }
+
+        .skeleton-line.snippet {
+            width: 95%;
+            height: 12px;
+        }
+
+        @keyframes skeleton-shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
         .timezone-info {
             text-align: center;
             font-size: 12px;
@@ -181,6 +368,23 @@
 
             .info-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .news-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .news-actions {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .news-meta {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 4px;
             }
         }
     </style>
@@ -223,12 +427,51 @@
             </div>
         </div>
 
+        <!-- Market News Section -->
+        <section id="news" class="news-section">
+            <div class="news-header">
+                <h2>Market News (ES)</h2>
+                <div class="news-actions">
+                    <button id="news-refresh" class="news-refresh-btn" aria-label="Refresh news">↻ Refresh</button>
+                    <span id="news-updated" class="news-timestamp" aria-live="polite"></span>
+                </div>
+            </div>
+            <div id="news-status" class="news-status" aria-live="polite"></div>
+            <ul id="news-list" class="news-list" aria-live="polite"></ul>
+        </section>
+
         <div class="timezone-info">
             <div>Display TZ: <span id="timezoneDisplay"></span></div>
         </div>
     </div>
 
     <script>
+        // ===== NEWS CONFIGURATION =====
+        const NEWS_FETCH_MODE = "rss"; // "rss" or "newsapi"
+        const NEWS_API_KEY = ""; // Set if using NewsAPI
+        const NEWS_MAX_ITEMS = 10;
+        const NEWS_REFRESH_MS = 5 * 60 * 1000; // 5 minutes
+        const NEWS_TIMEOUT_MS = 10000; // 10 seconds
+        const NEWS_QUERY_TERMS = [
+            '"E-mini S&P 500"',
+            '"CME ES"',
+            '"S&P 500 futures"',
+            '"equity index futures"',
+            '"ES futures"',
+            '"E-mini"'
+        ];
+        const NEWS_RSS_URL = `https://news.google.com/rss/search?q=${encodeURIComponent(NEWS_QUERY_TERMS.join(' OR '))}%20when:7d&hl=en-US&gl=US&ceid=US:en`;
+        const NEWS_ALLORIGINS_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(NEWS_RSS_URL)}`;
+
+        // Keywords for filtering relevant news
+        const NEWS_RELEVANT_KEYWORDS = [
+            'e-mini', 'emini', 'futures', 'index', 'equity', 'cme', 'chicago mercantile',
+            's&p 500', 'sp500', 'spx', 'market', 'trading', 'volatility'
+        ];
+        const NEWS_REJECT_KEYWORDS = [
+            'cryptocurrency', 'crypto', 'bitcoin', 'forex', 'fx', 'currency'
+        ];
+
         // Holiday configuration - add US market holidays here
         const HOLIDAYS = [
             // 2025 US Market Holidays
@@ -250,6 +493,10 @@
         // Global state
         let displayTimezone = null;
         let updateInterval = null;
+
+        // News state
+        let newsRefreshInterval = null;
+        let newsController = null;
 
         // Timezone handling utilities
         function getDisplayTimezone() {
@@ -480,6 +727,380 @@
             };
         }
 
+        // ===== NEWS MODULE =====
+
+        // Format relative time (e.g., "2h 15m ago")
+        function formatRelativeTime(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffSeconds = Math.floor(diffMs / 1000);
+            const diffMinutes = Math.floor(diffSeconds / 60);
+            const diffHours = Math.floor(diffMinutes / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffDays > 0) {
+                return `${diffDays}d ago`;
+            } else if (diffHours > 0) {
+                const remainingMinutes = diffMinutes % 60;
+                return remainingMinutes > 0 ? `${diffHours}h ${remainingMinutes}m ago` : `${diffHours}h ago`;
+            } else if (diffMinutes > 0) {
+                return `${diffMinutes}m ago`;
+            } else {
+                return 'Just now';
+            }
+        }
+
+        // Normalize news item to standard format
+        function normalizeNewsItem(item, source = 'rss') {
+            if (source === 'rss') {
+                return {
+                    title: item.title?.textContent?.trim() || '',
+                    url: item.link?.textContent?.trim() || '',
+                    source: extractDomain(item.link?.textContent || ''),
+                    publishedAt: new Date(item.pubDate?.textContent || Date.now()),
+                    snippet: item.description?.textContent?.replace(/<[^>]*>/g, '').substring(0, 140) || ''
+                };
+            } else if (source === 'newsapi') {
+                return {
+                    title: item.title || '',
+                    url: item.url || '',
+                    source: item.source?.name || extractDomain(item.url || ''),
+                    publishedAt: new Date(item.publishedAt),
+                    snippet: item.description?.substring(0, 140) || ''
+                };
+            }
+            return null;
+        }
+
+        // Extract domain from URL
+        function extractDomain(url) {
+            try {
+                const domain = new URL(url).hostname;
+                return domain.replace('www.', '');
+            } catch {
+                return 'Unknown';
+            }
+        }
+
+        // Check if news item is relevant to ES futures
+        function isRelevantNews(item) {
+            const text = (item.title + ' ' + item.snippet).toLowerCase();
+
+            // Reject if contains reject keywords
+            if (NEWS_REJECT_KEYWORDS.some(keyword => text.includes(keyword.toLowerCase()))) {
+                return false;
+            }
+
+            // Accept if contains relevant keywords
+            return NEWS_RELEVANT_KEYWORDS.some(keyword => text.includes(keyword.toLowerCase()));
+        }
+
+        // Remove duplicate news items
+        function deduplicateNews(items) {
+            const seen = new Set();
+            return items.filter(item => {
+                const key = item.title.toLowerCase().trim();
+                if (seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+        }
+
+        // Parse RSS feed XML
+        function parseRssFeed(xmlText) {
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                const items = Array.from(xmlDoc.querySelectorAll('item'));
+
+                return items
+                    .map(item => normalizeNewsItem(item, 'rss'))
+                    .filter(item => item && item.title && item.url)
+                    .filter(isRelevantNews);
+            } catch (error) {
+                console.error('Error parsing RSS feed:', error);
+                return [];
+            }
+        }
+
+        // Fetch news from RSS via AllOrigins
+        async function fetchNewsRss() {
+            const controller = new AbortController();
+            newsController = controller;
+
+            try {
+                const response = await fetch(NEWS_ALLORIGINS_URL, {
+                    signal: controller.signal,
+                    headers: {
+                        'Accept': 'application/rss+xml, application/xml, text/xml'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const xmlText = await response.text();
+                const items = parseRssFeed(xmlText);
+
+                return deduplicateNews(items)
+                    .sort((a, b) => b.publishedAt - a.publishedAt)
+                    .slice(0, NEWS_MAX_ITEMS);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timed out');
+                }
+                throw error;
+            }
+        }
+
+        // Fetch news from NewsAPI
+        async function fetchNewsApi() {
+            if (!NEWS_API_KEY) {
+                throw new Error('NewsAPI key not configured');
+            }
+
+            const controller = new AbortController();
+            newsController = controller;
+
+            const query = NEWS_QUERY_TERMS.join(' OR ');
+            const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&from=${new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}&apiKey=${NEWS_API_KEY}`;
+
+            try {
+                const response = await fetch(url, {
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error(`NewsAPI error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                return data.articles
+                    .map(item => normalizeNewsItem(item, 'newsapi'))
+                    .filter(item => item && item.title && item.url)
+                    .filter(isRelevantNews)
+                    .slice(0, NEWS_MAX_ITEMS);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timed out');
+                }
+                throw error;
+            }
+        }
+
+        // Main news fetch function
+        async function fetchNews() {
+            // Cancel any existing request
+            if (newsController) {
+                newsController.abort();
+            }
+
+            // Set timeout
+            setTimeout(() => {
+                if (newsController) {
+                    newsController.abort();
+                }
+            }, NEWS_TIMEOUT_MS);
+
+            try {
+                if (NEWS_FETCH_MODE === 'newsapi') {
+                    return await fetchNewsApi();
+                } else {
+                    return await fetchNewsRss();
+                }
+            } catch (error) {
+                console.error('News fetch failed:', error);
+                throw error;
+            } finally {
+                newsController = null;
+            }
+        }
+
+        // ===== NEWS UI FUNCTIONS =====
+
+        // Show loading skeleton
+        function showNewsLoading() {
+            const statusEl = document.getElementById('news-status');
+            const listEl = document.getElementById('news-list');
+
+            statusEl.textContent = 'Loading market news...';
+            statusEl.className = 'news-status loading';
+
+            // Create skeleton items
+            const skeleton = document.createElement('div');
+            skeleton.className = 'news-skeleton';
+
+            for (let i = 0; i < 3; i++) {
+                const item = document.createElement('div');
+                item.className = 'news-skeleton-item';
+                item.innerHTML = `
+                    <div class="skeleton-line title"></div>
+                    <div class="skeleton-line meta"></div>
+                    <div class="skeleton-line snippet"></div>
+                `;
+                skeleton.appendChild(item);
+            }
+
+            listEl.innerHTML = '';
+            listEl.appendChild(skeleton);
+        }
+
+        // Show error state
+        function showNewsError(error) {
+            const statusEl = document.getElementById('news-status');
+            const listEl = document.getElementById('news-list');
+
+            statusEl.innerHTML = `
+                <div style="margin-bottom: 8px;">Failed to load news: ${error.message}</div>
+                <button onclick="refreshNews()" style="padding: 4px 8px; font-size: 12px; border: 1px solid var(--border-color); background: var(--button-bg); color: var(--text-primary); border-radius: 4px; cursor: pointer;">
+                    Retry
+                </button>
+            `;
+            statusEl.className = 'news-status error';
+            listEl.innerHTML = '';
+        }
+
+        // Render news items to DOM
+        function renderNews(newsItems) {
+            const statusEl = document.getElementById('news-status');
+            const listEl = document.getElementById('news-list');
+            const timestampEl = document.getElementById('news-updated');
+
+            // Hide status when we have news
+            statusEl.className = 'news-status hidden';
+
+            // Update timestamp
+            const now = new Date();
+            timestampEl.textContent = `Updated ${formatTime(now, displayTimezone, true)}`;
+
+            // Clear existing content
+            listEl.innerHTML = '';
+
+            if (newsItems.length === 0) {
+                const emptyItem = document.createElement('li');
+                emptyItem.className = 'news-item';
+                emptyItem.innerHTML = `
+                    <div class="news-title">No recent ES news found</div>
+                    <div class="news-meta">
+                        <span>Try again later or check news sources directly</span>
+                    </div>
+                `;
+                listEl.appendChild(emptyItem);
+                return;
+            }
+
+            // Create news items
+            newsItems.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.className = 'news-item';
+
+                const title = item.title.length > 100 ? item.title.substring(0, 100) + '...' : item.title;
+                const snippet = item.snippet && item.snippet.length > 140 ? item.snippet.substring(0, 140) + '...' : item.snippet;
+
+                listItem.innerHTML = `
+                    <div class="news-title">
+                        <a href="${item.url}" target="_blank" rel="noopener noreferrer" title="${item.title}">
+                            ${title}
+                        </a>
+                    </div>
+                    <div class="news-meta">
+                        <span class="news-source">${item.source}</span>
+                        <span class="news-time">${formatRelativeTime(item.publishedAt)}</span>
+                    </div>
+                    ${snippet ? `<div class="news-snippet">${snippet}</div>` : ''}
+                `;
+
+                listEl.appendChild(listItem);
+            });
+        }
+
+        // Main refresh news function
+        async function refreshNews() {
+            const refreshBtn = document.getElementById('news-refresh');
+
+            try {
+                // Disable refresh button
+                refreshBtn.disabled = true;
+                refreshBtn.textContent = '↻ Loading...';
+
+                // Show loading state
+                showNewsLoading();
+
+                // Fetch news
+                const newsItems = await fetchNews();
+
+                // Cache successful result
+                try {
+                    localStorage.setItem('cme-es-news-cache', JSON.stringify({
+                        items: newsItems,
+                        timestamp: Date.now()
+                    }));
+                } catch (e) {
+                    console.warn('Failed to cache news:', e);
+                }
+
+                // Render results
+                renderNews(newsItems);
+
+            } catch (error) {
+                console.error('News refresh failed:', error);
+                showNewsError(error);
+
+                // Try to show cached news as fallback
+                try {
+                    const cached = localStorage.getItem('cme-es-news-cache');
+                    if (cached) {
+                        const { items, timestamp } = JSON.parse(cached);
+                        // Use cache if less than 1 hour old
+                        if (Date.now() - timestamp < 60 * 60 * 1000) {
+                            renderNews(items);
+                            const statusEl = document.getElementById('news-status');
+                            statusEl.innerHTML += '<div style="margin-top: 8px; font-size: 11px;">Showing cached news</div>';
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to load cached news:', e);
+                }
+
+            } finally {
+                // Re-enable refresh button
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '↻ Refresh';
+            }
+        }
+
+        // Initialize news on page load
+        function initNews() {
+            // Set up refresh button
+            const refreshBtn = document.getElementById('news-refresh');
+            refreshBtn.addEventListener('click', refreshNews);
+
+            // Try to load cached news first
+            try {
+                const cached = localStorage.getItem('cme-es-news-cache');
+                if (cached) {
+                    const { items, timestamp } = JSON.parse(cached);
+                    // Use cache if less than 5 minutes old
+                    if (Date.now() - timestamp < 5 * 60 * 1000) {
+                        renderNews(items);
+                        return; // Skip initial fetch
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to load cached news:', e);
+            }
+
+            // Initial news fetch
+            refreshNews();
+
+            // Set up auto-refresh
+            newsRefreshInterval = setInterval(refreshNews, NEWS_REFRESH_MS);
+        }
+
         // Update the display
         function updateDisplay() {
             const now = new Date();
@@ -586,6 +1207,9 @@
             // Initial update
             updateDisplay();
 
+            // Initialize news module
+            initNews();
+
             // Update every second
             updateInterval = setInterval(updateDisplay, 1000);
         }
@@ -594,6 +1218,12 @@
         window.addEventListener('beforeunload', () => {
             if (updateInterval) {
                 clearInterval(updateInterval);
+            }
+            if (newsRefreshInterval) {
+                clearInterval(newsRefreshInterval);
+            }
+            if (newsController) {
+                newsController.abort();
             }
         });
 
