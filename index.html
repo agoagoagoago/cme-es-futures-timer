@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CME E-mini S&P 500 Futures Session Tracker</title>
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --progress-bg: #e9ecef;
+            --progress-fill: #2563eb;
+            --button-bg: #f3f4f6;
+            --button-hover: #e5e7eb;
+            --button-active: #2563eb;
+            --button-active-text: #ffffff;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #1a1a1a;
+                --bg-secondary: #2a2a2a;
+                --text-primary: #f5f5f5;
+                --text-secondary: #a0a0a0;
+                --border-color: #404040;
+                --progress-bg: #374151;
+                --progress-fill: #3b82f6;
+                --button-bg: #374151;
+                --button-hover: #4b5563;
+                --button-active: #3b82f6;
+                --button-active-text: #ffffff;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .status-line {
+            font-size: 20px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 24px;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: var(--bg-primary);
+        }
+
+        .status-line.open {
+            color: var(--success);
+        }
+
+        .status-line.closed {
+            color: var(--error);
+        }
+
+        .status-line.maintenance {
+            color: var(--warning);
+        }
+
+        .progress-container {
+            margin-bottom: 32px;
+        }
+
+        .progress-bar-wrapper {
+            position: relative;
+            background-color: var(--progress-bg);
+            height: 40px;
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 16px 0;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: var(--progress-fill);
+            transition: width 0.3s ease;
+            position: relative;
+        }
+
+        .progress-percentage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-primary);
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .progress-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            padding: 12px;
+            background-color: var(--bg-primary);
+            border-radius: 6px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .timezone-info {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 20px;
+            }
+
+            .status-line {
+                font-size: 18px;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CME ES Futures - Globex Session</h1>
+
+        <div class="status-line" id="statusLine">
+            Initializing...
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-bar-wrapper" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-bar" id="progressBar"></div>
+                <div class="progress-percentage" id="progressPercentage"></div>
+            </div>
+            <div class="progress-labels">
+                <span id="progressLabelStart"></span>
+                <span id="progressLabelEnd"></span>
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">Session Open</div>
+                <div class="info-value" id="sessionOpen">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Session Close</div>
+                <div class="info-value" id="sessionClose">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Next Open</div>
+                <div class="info-value" id="nextOpen">—</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">Next Close</div>
+                <div class="info-value" id="nextClose">—</div>
+            </div>
+        </div>
+
+        <div class="timezone-info">
+            <div>Display TZ: <span id="timezoneDisplay"></span></div>
+        </div>
+    </div>
+
+    <script>
+        // Holiday configuration - add US market holidays here
+        const HOLIDAYS = [
+            // 2025 US Market Holidays
+            { date: '2025-01-01', name: 'New Year\'s Day', type: 'full' },
+            { date: '2025-01-20', name: 'Martin Luther King Jr. Day', type: 'full' },
+            { date: '2025-02-17', name: 'Presidents Day', type: 'full' },
+            { date: '2025-04-18', name: 'Good Friday', type: 'full' },
+            { date: '2025-05-26', name: 'Memorial Day', type: 'full' },
+            { date: '2025-06-19', name: 'Juneteenth', type: 'full' },
+            { date: '2025-07-03', name: 'July 3rd', type: 'early', closeTime: '12:00' }, // Early close at noon CT
+            { date: '2025-07-04', name: 'Independence Day', type: 'full' },
+            { date: '2025-09-01', name: 'Labor Day', type: 'full' },
+            { date: '2025-11-27', name: 'Thanksgiving', type: 'full' },
+            { date: '2025-11-28', name: 'Day After Thanksgiving', type: 'early', closeTime: '12:00' },
+            { date: '2025-12-24', name: 'Christmas Eve', type: 'early', closeTime: '12:00' },
+            { date: '2025-12-25', name: 'Christmas', type: 'full' },
+        ];
+
+        // Global state
+        let displayTimezone = null;
+        let updateInterval = null;
+
+        // Timezone handling utilities
+        function getDisplayTimezone() {
+            // Check URL parameter first
+            const urlParams = new URLSearchParams(window.location.search);
+            const tzParam = urlParams.get('tz');
+            if (tzParam) {
+                try {
+                    // Validate timezone by attempting to use it
+                    new Date().toLocaleString('en-US', { timeZone: tzParam });
+                    return tzParam;
+                } catch (e) {
+                    console.warn(`Invalid timezone parameter: ${tzParam}`);
+                }
+            }
+            // Fall back to detected timezone
+            return Intl.DateTimeFormat().resolvedOptions().timeZone;
+        }
+
+        // Get Chicago time components from a date
+        function getChicagoComponents(date) {
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'America/Chicago',
+                year: 'numeric',
+                month: 'numeric',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: 'numeric',
+                second: 'numeric',
+                weekday: 'short',
+                hour12: false
+            });
+
+            const parts = formatter.formatToParts(date);
+            const components = {};
+
+            parts.forEach(part => {
+                if (part.type === 'year') components.year = parseInt(part.value);
+                if (part.type === 'month') components.month = parseInt(part.value);
+                if (part.type === 'day') components.day = parseInt(part.value);
+                if (part.type === 'hour') components.hour = parseInt(part.value);
+                if (part.type === 'minute') components.minute = parseInt(part.value);
+                if (part.type === 'second') components.second = parseInt(part.value);
+                if (part.type === 'weekday') components.dayOfWeek = part.value;
+            });
+
+            return components;
+        }
+
+        // Create a Date at a specific Chicago time (handles DST correctly)
+        function createChicagoDate(year, month, day, hour, minute = 0, second = 0) {
+            // We'll use a binary search approach to find the correct UTC time
+            // that corresponds to the desired Chicago time
+
+            // Start with a rough estimate
+            const baseDate = new Date(Date.UTC(year, month - 1, day, hour + 6, minute, second));
+
+            // Search within a 12-hour window to account for DST
+            let low = baseDate.getTime() - 6 * 3600000;
+            let high = baseDate.getTime() + 6 * 3600000;
+
+            while (high - low > 1000) { // Search until we're within 1 second
+                const mid = Math.floor((low + high) / 2);
+                const testDate = new Date(mid);
+                const ct = getChicagoComponents(testDate);
+
+                const targetMinutes = hour * 60 + minute;
+                const testMinutes = ct.hour * 60 + ct.minute;
+
+                // Check if we found the right time on the right day
+                if (ct.year === year && ct.month === month && ct.day === day) {
+                    if (testMinutes === targetMinutes) {
+                        return testDate;
+                    } else if (testMinutes < targetMinutes) {
+                        low = mid;
+                    } else {
+                        high = mid;
+                    }
+                } else if (ct.year < year || (ct.year === year && ct.month < month) ||
+                          (ct.year === year && ct.month === month && ct.day < day)) {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+            }
+
+            return new Date(Math.floor((low + high) / 2));
+        }
+
+        // Check if a date is a holiday
+        function getHolidayInfo(date) {
+            const dateStr = date.toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); // YYYY-MM-DD format
+            return HOLIDAYS.find(h => h.date === dateStr);
+        }
+
+        // Get the next Globex session window
+        function getNextGlobexSession(now) {
+            const ct = getChicagoComponents(now);
+            const dayMap = { 'Sun': 0, 'Mon': 1, 'Tue': 2, 'Wed': 3, 'Thu': 4, 'Fri': 5, 'Sat': 6 };
+            const currentDayNum = dayMap[ct.dayOfWeek];
+
+            // Check for maintenance window (16:00-17:00 CT daily, 4:00-5:00 PM)
+            const isMaintenance = ct.hour === 16;
+
+            // Check if we're in weekend closure (Friday 16:00 - Sunday 17:00)
+            const inWeekendClosure = (currentDayNum === 5 && ct.hour >= 16) ||
+                                    currentDayNum === 6 ||
+                                    (currentDayNum === 0 && ct.hour < 17);
+
+            let sessionStart, sessionEnd, status;
+
+            if (inWeekendClosure) {
+                // Weekend closure
+                status = 'closed';
+                // Next session starts Sunday at 17:00 (5:00 PM CT)
+                const daysUntilSunday = (7 - currentDayNum) % 7;
+                const nextSundayDate = new Date(now);
+                nextSundayDate.setDate(nextSundayDate.getDate() + daysUntilSunday);
+                const nextSundayCT = getChicagoComponents(nextSundayDate);
+                sessionStart = createChicagoDate(nextSundayCT.year, nextSundayCT.month, nextSundayCT.day, 17, 0, 0);
+
+                // Session ends Monday at 16:00 (4:00 PM CT)
+                const mondayDate = new Date(sessionStart);
+                mondayDate.setDate(mondayDate.getDate() + 1);
+                const mondayCT = getChicagoComponents(mondayDate);
+                sessionEnd = createChicagoDate(mondayCT.year, mondayCT.month, mondayCT.day, 16, 0, 0);
+            } else if (isMaintenance) {
+                // Daily maintenance window
+                status = 'maintenance';
+                sessionStart = createChicagoDate(ct.year, ct.month, ct.day, 17, 0, 0);
+
+                // Session ends next day at 16:00 (or Friday 16:00 if Thursday maintenance)
+                if (currentDayNum === 4) {
+                    // Thursday maintenance - next session ends Friday 16:00
+                    const fridayDate = new Date(now);
+                    fridayDate.setDate(fridayDate.getDate() + 1);
+                    const fridayCT = getChicagoComponents(fridayDate);
+                    sessionEnd = createChicagoDate(fridayCT.year, fridayCT.month, fridayCT.day, 16, 0, 0);
+                } else {
+                    // Regular maintenance - next session ends tomorrow 16:00
+                    const tomorrowDate = new Date(now);
+                    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+                    const tomorrowCT = getChicagoComponents(tomorrowDate);
+                    sessionEnd = createChicagoDate(tomorrowCT.year, tomorrowCT.month, tomorrowCT.day, 16, 0, 0);
+                }
+            } else if (ct.hour >= 17 || ct.hour < 16) {
+                // Active session
+                status = 'open';
+
+                // Find session start (today 17:00 or yesterday 17:00)
+                if (ct.hour >= 17) {
+                    sessionStart = createChicagoDate(ct.year, ct.month, ct.day, 17, 0, 0);
+                } else {
+                    const yesterdayDate = new Date(now);
+                    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                    const yesterdayCT = getChicagoComponents(yesterdayDate);
+                    sessionStart = createChicagoDate(yesterdayCT.year, yesterdayCT.month, yesterdayCT.day, 17, 0, 0);
+                }
+
+                // Session ends today at 16:00 or tomorrow at 16:00
+                if (ct.hour >= 17) {
+                    const tomorrowDate = new Date(now);
+                    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+                    const tomorrowCT = getChicagoComponents(tomorrowDate);
+                    sessionEnd = createChicagoDate(tomorrowCT.year, tomorrowCT.month, tomorrowCT.day, 16, 0, 0);
+                } else {
+                    sessionEnd = createChicagoDate(ct.year, ct.month, ct.day, 16, 0, 0);
+                }
+            } else {
+                // Should not reach here, but handle as closed
+                status = 'closed';
+                sessionStart = createChicagoDate(ct.year, ct.month, ct.day, 17, 0, 0);
+                const tomorrowDate = new Date(now);
+                tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+                const tomorrowCT = getChicagoComponents(tomorrowDate);
+                sessionEnd = createChicagoDate(tomorrowCT.year, tomorrowCT.month, tomorrowCT.day, 16, 0, 0);
+            }
+
+            // Check for holidays
+            const holiday = getHolidayInfo(now);
+            if (holiday && holiday.type === 'full') {
+                status = 'holiday';
+            }
+
+            return { status, sessionStart, sessionEnd, isMaintenance, holiday };
+        }
+
+        // Format time for display
+        function formatTime(date, timezone, includeSeconds = false) {
+            const options = {
+                timeZone: timezone,
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+            if (includeSeconds) {
+                options.second = '2-digit';
+            }
+            return date.toLocaleString('en-US', options);
+        }
+
+        // Format date and time for display
+        function formatDateTime(date, timezone) {
+            return date.toLocaleString('en-US', {
+                timeZone: timezone,
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // Calculate time difference
+        function getTimeDifference(future, now) {
+            const diff = future - now;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            return {
+                total: diff,
+                hours: hours,
+                minutes: minutes,
+                seconds: seconds,
+                formatted: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+            };
+        }
+
+        // Update the display
+        function updateDisplay() {
+            const now = new Date();
+            const timezone = displayTimezone;
+
+            // Get session info for Globex
+            const sessionInfo = getNextGlobexSession(now);
+
+            // Update timezone display
+            document.getElementById('timezoneDisplay').textContent = timezone;
+
+            // Get elements
+            const statusLine = document.getElementById('statusLine');
+            const progressBar = document.getElementById('progressBar');
+            const progressPercentage = document.getElementById('progressPercentage');
+            const progressWrapper = document.querySelector('.progress-bar-wrapper');
+            const labelStart = document.getElementById('progressLabelStart');
+            const labelEnd = document.getElementById('progressLabelEnd');
+
+            // Calculate progress and time remaining
+            let progressPercent = 0;
+            let statusText = '';
+            let statusClass = '';
+
+            if (sessionInfo.holiday && sessionInfo.holiday.type === 'full') {
+                statusClass = 'closed';
+                statusText = `Closed (${sessionInfo.holiday.name})`;
+                const timeDiff = getTimeDifference(sessionInfo.sessionStart, now);
+                if (timeDiff.total > 0) {
+                    statusText += ` — opens in ${timeDiff.formatted}`;
+                }
+                progressPercent = 0;
+                labelStart.textContent = `Next Open: ${formatTime(sessionInfo.sessionStart, timezone)}`;
+                labelEnd.textContent = `Next Close: ${formatTime(sessionInfo.sessionEnd, timezone)}`;
+            } else if (sessionInfo.status === 'open') {
+                statusClass = 'open';
+                const timeDiff = getTimeDifference(sessionInfo.sessionEnd, now);
+                statusText = `Open — closes in ${timeDiff.formatted}`;
+
+                // Calculate progress
+                const sessionLength = sessionInfo.sessionEnd - sessionInfo.sessionStart;
+                const elapsed = now - sessionInfo.sessionStart;
+                progressPercent = Math.min(100, Math.max(0, (elapsed / sessionLength) * 100));
+
+                labelStart.textContent = `Session Open: ${formatTime(sessionInfo.sessionStart, timezone)}`;
+                labelEnd.textContent = `Session Close: ${formatTime(sessionInfo.sessionEnd, timezone)}`;
+            } else if (sessionInfo.isMaintenance) {
+                statusClass = 'maintenance';
+                const timeDiff = getTimeDifference(sessionInfo.sessionStart, now);
+                statusText = `Maintenance Halt — reopens in ${timeDiff.formatted}`;
+                progressPercent = 0;
+                labelStart.textContent = `Next Open: ${formatTime(sessionInfo.sessionStart, timezone)}`;
+                labelEnd.textContent = `Next Close: ${formatTime(sessionInfo.sessionEnd, timezone)}`;
+            } else {
+                statusClass = 'closed';
+                const timeDiff = getTimeDifference(sessionInfo.sessionStart, now);
+                statusText = `Closed — opens in ${timeDiff.formatted}`;
+                progressPercent = 0;
+                labelStart.textContent = `Next Open: ${formatTime(sessionInfo.sessionStart, timezone)}`;
+                labelEnd.textContent = `Next Close: ${formatTime(sessionInfo.sessionEnd, timezone)}`;
+            }
+
+            // Update status line
+            statusLine.textContent = statusText;
+            statusLine.className = `status-line ${statusClass}`;
+
+            // Update progress bar
+            progressBar.style.width = `${progressPercent}%`;
+            progressWrapper.setAttribute('aria-valuenow', Math.round(progressPercent));
+
+            // Update percentage display
+            if (sessionInfo.status === 'open') {
+                progressPercentage.textContent = `${Math.round(progressPercent)}% through session`;
+            } else {
+                progressPercentage.textContent = '';
+            }
+
+            // Update info grid
+            if (sessionInfo.status === 'open') {
+                document.getElementById('sessionOpen').textContent = formatDateTime(sessionInfo.sessionStart, timezone);
+                document.getElementById('sessionClose').textContent = formatDateTime(sessionInfo.sessionEnd, timezone);
+
+                // Calculate next session after current one ends
+                const futureTime = new Date(sessionInfo.sessionEnd.getTime() + 60000); // 1 minute after close
+                const nextSession = getNextGlobexSession(futureTime);
+
+                document.getElementById('nextOpen').textContent = formatDateTime(nextSession.sessionStart, timezone);
+                document.getElementById('nextClose').textContent = formatDateTime(nextSession.sessionEnd, timezone);
+            } else {
+                document.getElementById('sessionOpen').textContent = '—';
+                document.getElementById('sessionClose').textContent = '—';
+                document.getElementById('nextOpen').textContent = formatDateTime(sessionInfo.sessionStart, timezone);
+                document.getElementById('nextClose').textContent = formatDateTime(sessionInfo.sessionEnd, timezone);
+            }
+        }
+
+        // Initialize
+        function init() {
+            // Set display timezone
+            displayTimezone = getDisplayTimezone();
+
+            // No mode toggle needed - Globex only
+
+            // Initial update
+            updateDisplay();
+
+            // Update every second
+            updateInterval = setInterval(updateDisplay, 1000);
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        });
+
+        // Start the application
+        init();
+    </script>
+</body>
+</html>
