@@ -461,7 +461,13 @@
             '"E-mini"'
         ];
         const NEWS_RSS_URL = `https://news.google.com/rss/search?q=${encodeURIComponent(NEWS_QUERY_TERMS.join(' OR '))}%20when:7d&hl=en-US&gl=US&ceid=US:en`;
-        const NEWS_ALLORIGINS_URL = `https://api.allorigins.win/raw?url=${encodeURIComponent(NEWS_RSS_URL)}`;
+        // Try multiple CORS proxy services as fallbacks
+        const CORS_PROXIES = [
+            url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+            url => `https://cors-anywhere.herokuapp.com/${url}`
+        ];
+        let currentProxyIndex = 0;
 
         // Keywords for filtering relevant news
         const NEWS_RELEVANT_KEYWORDS = [
@@ -870,91 +876,127 @@
             }
         }
 
-        // Fetch news from RSS via AllOrigins
+        // Fetch news from RSS via CORS proxy
         async function fetchNewsRss() {
             const controller = new AbortController();
             newsController = controller;
 
-            console.log('Fetching news from:', NEWS_ALLORIGINS_URL);
+            // Try each CORS proxy in sequence
+            for (let i = 0; i < CORS_PROXIES.length; i++) {
+                currentProxyIndex = i;
+                const proxyUrl = CORS_PROXIES[i](NEWS_RSS_URL);
+                console.log(`Trying CORS proxy ${i + 1}/${CORS_PROXIES.length}:`, proxyUrl);
 
-            try {
-                const response = await fetch(NEWS_ALLORIGINS_URL, {
-                    signal: controller.signal,
-                    headers: {
-                        'Accept': 'application/rss+xml, application/xml, text/xml'
-                    }
-                });
-
-                console.log('Fetch response status:', response.status);
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const xmlText = await response.text();
-                console.log('Received XML length:', xmlText.length);
-
-                // Quick check if it's actually XML
-                if (!xmlText.includes('<') || !xmlText.includes('xml')) {
-                    console.error('Response doesn\'t appear to be XML:', xmlText.substring(0, 200));
-                    throw new Error('Invalid XML response');
-                }
-
-                const items = parseRssFeed(xmlText);
-                console.log('Parsed items:', items.length);
-
-                if (items.length === 0) {
-                    // Try direct Google News URL as fallback
-                    console.log('No items found, trying fallback approach...');
-                    return await fetchNewsFallback();
-                }
-
-                const result = deduplicateNews(items)
-                    .sort((a, b) => b.publishedAt - a.publishedAt)
-                    .slice(0, NEWS_MAX_ITEMS);
-
-                console.log('Final news items:', result.length);
-                return result;
-            } catch (error) {
-                console.error('RSS fetch error:', error);
-                if (error.name === 'AbortError') {
-                    throw new Error('Request timed out');
-                }
-                // Try fallback
                 try {
-                    return await fetchNewsFallback();
-                } catch (fallbackError) {
-                    console.error('Fallback also failed:', fallbackError);
-                    throw error;
+                    const response = await fetch(proxyUrl, {
+                        signal: controller.signal,
+                        headers: {
+                            'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+                        }
+                    });
+
+                    console.log('Fetch response status:', response.status);
+
+                    if (!response.ok) {
+                        console.warn(`Proxy ${i + 1} failed with status ${response.status}`);
+                        continue; // Try next proxy
+                    }
+
+                    const xmlText = await response.text();
+                    console.log('Received response length:', xmlText.length);
+
+                    // Quick check if it's actually XML
+                    if (!xmlText.includes('<')) {
+                        console.warn(`Proxy ${i + 1} returned non-XML response`);
+                        continue; // Try next proxy
+                    }
+
+                    const items = parseRssFeed(xmlText);
+                    console.log('Parsed items:', items.length);
+
+                    if (items.length > 0) {
+                        const result = deduplicateNews(items)
+                            .sort((a, b) => b.publishedAt - a.publishedAt)
+                            .slice(0, NEWS_MAX_ITEMS);
+
+                        console.log('Successfully fetched news items:', result.length);
+                        return result;
+                    }
+                } catch (error) {
+                    console.warn(`Proxy ${i + 1} error:`, error.message);
+                    if (error.name === 'AbortError') {
+                        throw new Error('Request timed out');
+                    }
+                    // Continue to next proxy
                 }
             }
+
+            // All proxies failed, use fallback
+            console.log('All CORS proxies failed, using fallback news...');
+            return await fetchNewsFallback();
         }
 
-        // Fallback news source with mock data for testing
+        // Fallback news source - try simpler RSS feed
         async function fetchNewsFallback() {
             console.log('Using fallback news source');
-            // Return some mock ES-related news for testing
+
+            // Try a simpler, more reliable financial news RSS feed
+            const fallbackFeeds = [
+                'https://feeds.finance.yahoo.com/rss/2.0/headline',
+                'https://feeds.bloomberg.com/markets/news.rss'
+            ];
+
+            for (const feedUrl of fallbackFeeds) {
+                try {
+                    // Try with corsproxy.io which seems most reliable
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(feedUrl)}`;
+                    console.log('Trying fallback feed:', proxyUrl);
+
+                    const response = await fetch(proxyUrl);
+                    if (response.ok) {
+                        const text = await response.text();
+                        const items = parseRssFeed(text);
+                        if (items.length > 0) {
+                            // Filter for futures-related content
+                            const futuresNews = items.filter(item => {
+                                const text = (item.title + ' ' + (item.snippet || '')).toLowerCase();
+                                return text.includes('futures') || text.includes('s&p') || text.includes('market');
+                            });
+
+                            if (futuresNews.length > 0) {
+                                console.log('Found fallback news items:', futuresNews.length);
+                                return futuresNews.slice(0, NEWS_MAX_ITEMS);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Fallback feed error:', error.message);
+                }
+            }
+
+            // Last resort: return generic market-related items
+            console.log('Using static fallback news');
             return [
                 {
-                    title: "S&P 500 Futures Rise Ahead of Market Open",
-                    url: "https://example.com/news1",
+                    title: "Market Update: Check Financial News Sources",
+                    url: "https://www.marketwatch.com/investing/index/spx",
                     source: "MarketWatch",
-                    publishedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutes ago
-                    snippet: "E-mini S&P 500 futures showed gains in pre-market trading as investors assess market conditions."
+                    publishedAt: new Date(),
+                    snippet: "For the latest E-mini S&P 500 futures news, visit financial news websites directly."
                 },
                 {
-                    title: "CME Group Reports Strong Futures Volume",
-                    url: "https://example.com/news2",
-                    source: "Bloomberg",
-                    publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-                    snippet: "Chicago Mercantile Exchange sees increased trading in equity index futures including ES contracts."
+                    title: "CME Group - E-mini S&P 500 Futures",
+                    url: "https://www.cmegroup.com/markets/equities/sp/e-mini-sandp500.html",
+                    source: "CME Group",
+                    publishedAt: new Date(),
+                    snippet: "Official CME Group page for ES futures contract specifications and market data."
                 },
                 {
-                    title: "E-mini Futures Point to Market Volatility",
-                    url: "https://example.com/news3",
-                    source: "Reuters",
-                    publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-                    snippet: "Index futures suggest potential market movement as traders position for upcoming economic data."
+                    title: "S&P 500 Index Real-Time Quote",
+                    url: "https://finance.yahoo.com/quote/ES=F",
+                    source: "Yahoo Finance",
+                    publishedAt: new Date(),
+                    snippet: "View real-time E-mini S&P 500 futures prices and market analysis."
                 }
             ];
         }
